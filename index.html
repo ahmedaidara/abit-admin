@@ -10,12 +10,8 @@
   <style>
     .admin-layout { display: flex; min-height: 100dvh; }
     .sidebar {
-      width: 240px;
-      background: var(--abit-green-dark);
-      color: white;
-      padding: var(--space-6) var(--space-4);
-      flex-shrink: 0;
-      display: none;
+      width: 240px; background: var(--abit-green-dark); color: white;
+      padding: var(--space-6) var(--space-4); flex-shrink: 0; display: none;
     }
     @media (min-width: 900px) {
       .sidebar { display: block; }
@@ -23,59 +19,30 @@
     }
     .sidebar .logo { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-8); }
     .sidebar a {
-      display: block;
-      padding: var(--space-3) var(--space-3);
-      border-radius: var(--radius-sm);
-      margin-bottom: 2px;
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.75);
+      display: block; padding: var(--space-3); border-radius: var(--radius-sm);
+      margin-bottom: 2px; font-size: 0.9rem; color: rgba(255,255,255,0.75);
     }
-    .sidebar a:hover, .sidebar a.active {
-      background: rgba(255,255,255,0.1);
-      color: white;
-    }
-    .main-admin {
-      flex: 1;
-      padding: var(--space-4);
-      max-width: 100%;
-      overflow-x: hidden;
-    }
+    .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); color: white; }
+    .main-admin { flex: 1; padding: var(--space-4); max-width: 100%; overflow-x: hidden; }
     .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: var(--space-3);
-      margin-bottom: var(--space-6);
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-3); margin-bottom: var(--space-6);
     }
-    @media (min-width: 600px) {
-      .stat-grid { grid-template-columns: repeat(4, 1fr); }
-    }
+    @media (min-width: 600px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } }
     .stat-card {
-      background: white;
-      border-radius: var(--radius-md);
-      padding: var(--space-4);
-      border: 1px solid var(--abit-gray-100);
+      background: white; border-radius: var(--radius-md);
+      padding: var(--space-4); border: 1px solid var(--abit-gray-100);
     }
     .stat-card .label { font-size: 0.75rem; color: var(--abit-gray-400); margin-bottom: 4px; }
     .stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--abit-green); }
     .mobile-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: white;
-      border-top: 1px solid var(--abit-gray-100);
-      display: flex;
-      overflow-x: auto;
-      z-index: 100;
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-top: 1px solid var(--abit-gray-100); display: flex; overflow-x: auto; z-index: 100;
       padding-bottom: env(safe-area-inset-bottom);
     }
     .mobile-nav a {
-      flex: 1;
-      min-width: 70px;
-      text-align: center;
-      padding: 10px 4px;
-      font-size: 0.65rem;
-      color: var(--abit-gray-400);
+      flex: 1; min-width: 70px; text-align: center; padding: 10px 4px;
+      font-size: 0.65rem; color: var(--abit-gray-400);
     }
     .mobile-nav a.active { color: var(--abit-green); }
   </style>
@@ -115,49 +82,37 @@
       </aside>
 
       <main class="main-admin">
-        <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-6)">
-          <div>
-            <h1 style="font-size:1.4rem;font-weight:700">Tableau de bord</h1>
-            <p style="font-size:0.85rem;color:var(--abit-gray-400)" id="welcome-name">Bonjour</p>
-          </div>
+        <header style="margin-bottom:var(--space-6)">
+          <h1 style="font-size:1.4rem;font-weight:700">Tableau de bord</h1>
+          <p style="font-size:0.85rem;color:var(--abit-gray-400)" id="welcome-name">Bonjour</p>
         </header>
 
-        <div class="stat-grid" id="stats">
+        <div class="stat-grid">
           <div class="stat-card">
             <div class="label">Échanges en attente</div>
             <div class="value" id="stat-exchanges">—</div>
           </div>
           <div class="stat-card">
-            <div class="label">Commandes à traiter</div>
+            <div class="label">Commandes</div>
             <div class="value" id="stat-orders">—</div>
           </div>
           <div class="stat-card">
-            <div class="label">Colis en transit</div>
-            <div class="value" id="stat-transit">—</div>
+            <div class="label">Produits publiés</div>
+            <div class="value" id="stat-products">—</div>
           </div>
           <div class="stat-card">
-            <div class="label">Produits actifs</div>
-            <div class="value" id="stat-products">—</div>
+            <div class="label">Tous les produits</div>
+            <div class="value" id="stat-products-all">—</div>
           </div>
         </div>
 
         <div class="card">
           <h2 style="font-size:1rem;font-weight:600;margin-bottom:var(--space-3)">Actions rapides</h2>
           <div style="display:flex;flex-wrap:wrap;gap:var(--space-2)">
-            <a href="exchanges.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Gérer les échanges</a>
-            <a href="orders.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Voir les commandes</a>
-            <a href="products.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Ajouter un produit</a>
-            <a href="settings.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Modifier le taux</a>
+            <a href="products.html" class="btn btn-primary" style="min-height:40px;font-size:0.875rem">Gérer les produits</a>
+            <a href="orders.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Commandes</a>
+            <a href="exchanges.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Échanges</a>
           </div>
-        </div>
-
-        <div class="card" style="margin-top:var(--space-4)">
-          <h2 style="font-size:1rem;font-weight:600;margin-bottom:var(--space-3)">État du système</h2>
-          <p style="font-size:0.875rem;color:var(--abit-gray-600)">
-            Projet Firebase : <strong>abit-d927a</strong><br/>
-            Mode : développement initial<br/>
-            Les statistiques se rempliront dès que des données seront créées.
-          </p>
         </div>
       </main>
     </div>
@@ -172,7 +127,7 @@
   </div>
 
   <script type="module">
-    import { auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, getUserProfile } from "./js/firebase-init.js";
+    import { auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, getUserProfile, collection, getDocs } from "./js/firebase-init.js";
 
     const authGate = document.getElementById("auth-gate");
     const adminApp = document.getElementById("admin-app");
@@ -188,15 +143,12 @@
       if (isAdmin) {
         authGate.style.display = "none";
         adminApp.style.display = "block";
-        document.getElementById("welcome-name").textContent = 
-          `Bonjour ${user.email || "Admin"}`;
+        document.getElementById("welcome-name").textContent = `Bonjour ${user.email || "Admin"}`;
         loadStats();
       } else {
         adminApp.style.display = "none";
         authGate.style.display = "flex";
-        if (user) {
-          await signOut(auth);
-        }
+        if (user) await signOut(auth);
       }
     });
 
@@ -207,7 +159,7 @@
       errEl.style.display = "none";
       try {
         await signInWithEmailAndPassword(auth, email, password);
-      } catch (e) {
+      } catch {
         errEl.textContent = "Identifiants incorrects ou compte non autorisé.";
         errEl.style.display = "block";
       }
@@ -220,12 +172,24 @@
 
     async function loadStats() {
       try {
-        document.getElementById("stat-exchanges").textContent = "0";
-        document.getElementById("stat-orders").textContent = "0";
-        document.getElementById("stat-transit").textContent = "0";
-        document.getElementById("stat-products").textContent = "0";
+        const snap = await getDocs(collection(db, "products"));
+        const all = snap.size;
+        const published = snap.docs.filter(d => d.data().published === true).length;
+        document.getElementById("stat-products").textContent = String(published);
+        document.getElementById("stat-products-all").textContent = String(all);
+
+        const orders = await getDocs(collection(db, "orders"));
+        document.getElementById("stat-orders").textContent = String(orders.size);
+
+        const exchanges = await getDocs(collection(db, "exchangeRequests"));
+        const pending = exchanges.docs.filter(d => d.data().status === "pending").length;
+        document.getElementById("stat-exchanges").textContent = String(pending);
       } catch (e) {
         console.warn(e);
+        document.getElementById("stat-products").textContent = "0";
+        document.getElementById("stat-products-all").textContent = "0";
+        document.getElementById("stat-orders").textContent = "0";
+        document.getElementById("stat-exchanges").textContent = "0";
       }
     }
   </script>
