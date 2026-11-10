@@ -23,7 +23,7 @@
       margin-bottom: 2px; font-size: 0.9rem; color: rgba(255,255,255,0.75);
     }
     .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); color: white; }
-    .main-admin { flex: 1; padding: var(--space-4); max-width: 100%; overflow-x: hidden; }
+    .main-admin { flex: 1; padding: var(--space-4); padding-bottom: 80px; max-width: 100%; overflow-x: hidden; }
     .stat-grid {
       display: grid; grid-template-columns: repeat(2, 1fr);
       gap: var(--space-3); margin-bottom: var(--space-6);
@@ -48,24 +48,7 @@
   </style>
 </head>
 <body>
-  <div id="auth-gate" style="display:none;min-height:100dvh;align-items:center;justify-content:center;padding:var(--space-6)">
-    <div class="card" style="max-width:360px;width:100%">
-      <h1 style="font-size:1.35rem;margin-bottom:var(--space-2)">ABIT Admin</h1>
-      <p style="color:var(--abit-gray-600);font-size:0.9rem;margin-bottom:var(--space-5)">Connexion réservée aux administrateurs.</p>
-      <div class="form-group">
-        <label class="form-label">Email</label>
-        <input type="email" id="admin-email" class="form-input" placeholder="admin@exemple.com" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Mot de passe</label>
-        <input type="password" id="admin-password" class="form-input" />
-      </div>
-      <button class="btn btn-primary btn-block" id="btn-login">Se connecter</button>
-      <p id="login-error" style="color:var(--status-error);font-size:0.85rem;margin-top:var(--space-3);display:none"></p>
-    </div>
-  </div>
-
-  <div id="admin-app" style="display:none">
+  <div id="admin-app">
     <div class="admin-layout">
       <aside class="sidebar">
         <div class="logo">ABIT <span style="color:var(--abit-gold)">Admin</span></div>
@@ -77,14 +60,13 @@
           <a href="tracking.html">Tracking</a>
           <a href="customers.html">Clients</a>
           <a href="settings.html">Paramètres</a>
-          <a href="#" id="btn-logout" style="margin-top:var(--space-6);color:#f87171">Déconnexion</a>
         </nav>
       </aside>
 
       <main class="main-admin">
         <header style="margin-bottom:var(--space-6)">
           <h1 style="font-size:1.4rem;font-weight:700">Tableau de bord</h1>
-          <p style="font-size:0.85rem;color:var(--abit-gray-400)" id="welcome-name">Bonjour</p>
+          <p style="font-size:0.85rem;color:var(--abit-gray-400)">Administration ABIT</p>
         </header>
 
         <div class="stat-grid">
@@ -112,6 +94,7 @@
             <a href="products.html" class="btn btn-primary" style="min-height:40px;font-size:0.875rem">Gérer les produits</a>
             <a href="orders.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Commandes</a>
             <a href="exchanges.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Échanges</a>
+            <a href="settings.html" class="btn btn-outline" style="min-height:40px;font-size:0.875rem">Taux & paramètres</a>
           </div>
         </div>
       </main>
@@ -127,71 +110,29 @@
   </div>
 
   <script type="module">
-    import { auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, getUserProfile, collection, getDocs } from "./js/firebase-init.js";
-
-    const authGate = document.getElementById("auth-gate");
-    const adminApp = document.getElementById("admin-app");
-
-    async function checkAdmin(user) {
-      if (!user) return false;
-      const profile = await getUserProfile(user.uid);
-      return profile && profile.role === "admin";
-    }
-
-    onAuthStateChanged(auth, async (user) => {
-      const isAdmin = await checkAdmin(user);
-      if (isAdmin) {
-        authGate.style.display = "none";
-        adminApp.style.display = "block";
-        document.getElementById("welcome-name").textContent = `Bonjour ${user.email || "Admin"}`;
-        loadStats();
-      } else {
-        adminApp.style.display = "none";
-        authGate.style.display = "flex";
-        if (user) await signOut(auth);
-      }
-    });
-
-    document.getElementById("btn-login").addEventListener("click", async () => {
-      const email = document.getElementById("admin-email").value.trim();
-      const password = document.getElementById("admin-password").value;
-      const errEl = document.getElementById("login-error");
-      errEl.style.display = "none";
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch {
-        errEl.textContent = "Identifiants incorrects ou compte non autorisé.";
-        errEl.style.display = "block";
-      }
-    });
-
-    document.getElementById("btn-logout").addEventListener("click", (e) => {
-      e.preventDefault();
-      signOut(auth);
-    });
+    import { db, collection, getDocs } from "./js/firebase-init.js";
 
     async function loadStats() {
       try {
         const snap = await getDocs(collection(db, "products"));
-        const all = snap.size;
-        const published = snap.docs.filter(d => d.data().published === true).length;
-        document.getElementById("stat-products").textContent = String(published);
-        document.getElementById("stat-products-all").textContent = String(all);
+        document.getElementById("stat-products").textContent = String(snap.docs.filter(d => d.data().published === true).length);
+        document.getElementById("stat-products-all").textContent = String(snap.size);
 
         const orders = await getDocs(collection(db, "orders"));
         document.getElementById("stat-orders").textContent = String(orders.size);
 
         const exchanges = await getDocs(collection(db, "exchangeRequests"));
-        const pending = exchanges.docs.filter(d => d.data().status === "pending").length;
-        document.getElementById("stat-exchanges").textContent = String(pending);
+        document.getElementById("stat-exchanges").textContent = String(
+          exchanges.docs.filter(d => d.data().status === "pending").length
+        );
       } catch (e) {
         console.warn(e);
-        document.getElementById("stat-products").textContent = "0";
-        document.getElementById("stat-products-all").textContent = "0";
-        document.getElementById("stat-orders").textContent = "0";
-        document.getElementById("stat-exchanges").textContent = "0";
+        ["stat-products","stat-products-all","stat-orders","stat-exchanges"].forEach(id => {
+          document.getElementById(id).textContent = "0";
+        });
       }
     }
+    loadStats();
   </script>
 </body>
 </html>
