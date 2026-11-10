@@ -42,7 +42,6 @@
       display: flex; gap: var(--space-3); align-items: center;
       padding: var(--space-3); border-bottom: 1px solid var(--abit-gray-100);
     }
-    .product-row:last-child { border-bottom: none; }
     .thumb {
       width: 56px; height: 56px; border-radius: var(--radius-sm);
       object-fit: cover; background: var(--abit-gray-50); flex-shrink: 0;
@@ -66,10 +65,20 @@
       .modal-overlay { align-items: center; }
       .modal { border-radius: var(--radius-xl); max-height: 90vh; }
     }
-    .preview-img {
-      width: 100%; max-height: 180px; object-fit: cover;
-      border-radius: var(--radius-md); margin-bottom: var(--space-3);
-      display: none; background: var(--abit-gray-50);
+    .preview-grid {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-3);
+    }
+    .preview-item {
+      position: relative; width: 72px; height: 72px;
+    }
+    .preview-item img {
+      width: 72px; height: 72px; object-fit: cover; border-radius: 8px;
+      border: 1px solid var(--abit-gray-100);
+    }
+    .preview-item button {
+      position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+      border-radius: 50%; background: #DC2626; color: #fff; font-size: 12px;
+      border: none; line-height: 1;
     }
     .row-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
     .btn-sm {
@@ -89,12 +98,10 @@
         <div class="logo">ABIT <span style="color:var(--abit-gold)">Admin</span></div>
         <nav>
           <a href="index.html">Tableau de bord</a>
-          <a href="exchanges.html">Échanges</a>
+          <a href="exchanges.html">Echanges</a>
           <a href="orders.html">Commandes</a>
           <a href="products.html" class="active">Produits</a>
-          <a href="tracking.html">Tracking</a>
-          <a href="customers.html">Clients</a>
-          <a href="settings.html">Paramètres</a>
+          <a href="settings.html">Parametres</a>
         </nav>
       </aside>
 
@@ -111,7 +118,6 @@
           <div id="list"></div>
           <div id="empty" class="empty-state" style="display:none;padding:var(--space-10)">
             <p>Aucun produit.</p>
-            <p style="font-size:0.85rem;margin-top:8px">Ajoute ton premier article pour la boutique client.</p>
           </div>
         </div>
       </main>
@@ -119,10 +125,10 @@
 
     <nav class="mobile-nav">
       <a href="index.html">Dashboard</a>
-      <a href="exchanges.html">Échanges</a>
+      <a href="exchanges.html">Echanges</a>
       <a href="orders.html">Commandes</a>
       <a href="products.html" class="active">Produits</a>
-      <a href="settings.html">Réglages</a>
+      <a href="settings.html">Reglages</a>
     </nav>
   </div>
 
@@ -133,21 +139,20 @@
         <button type="button" id="modal-close" style="font-size:1.5rem;line-height:1;color:var(--abit-gray-400)">×</button>
       </div>
 
-      <img id="f-preview" class="preview-img" alt="Aperçu" />
-
       <div class="form-group">
-        <label class="form-label">Photo</label>
-        <input type="file" id="f-image" accept="image/*" class="form-input" style="padding-top:10px" />
+        <label class="form-label">Photos (plusieurs possibles)</label>
+        <input type="file" id="f-images" accept="image/*" multiple class="form-input" style="padding-top:10px" />
+        <div class="preview-grid" id="preview-grid"></div>
       </div>
 
       <div class="form-group">
         <label class="form-label">Nom du produit *</label>
-        <input type="text" id="f-name" class="form-input" placeholder="Ex. Écouteurs Bluetooth" />
+        <input type="text" id="f-name" class="form-input" placeholder="Ex. Detergent" />
       </div>
 
       <div class="form-group">
         <label class="form-label">Description</label>
-        <textarea id="f-desc" class="form-textarea" placeholder="Caractéristiques…"></textarea>
+        <textarea id="f-desc" class="form-textarea" placeholder="Caracteristiques, contenu du pack…"></textarea>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)">
@@ -162,13 +167,13 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Catégorie</label>
-        <input type="text" id="f-category" class="form-input" placeholder="Électronique, Mode…" />
+        <label class="form-label">Categorie</label>
+        <input type="text" id="f-category" class="form-input" placeholder="Maison, Mode…" />
       </div>
 
       <div class="form-group">
-        <label class="form-label">Délai estimé</label>
-        <input type="text" id="f-delay" class="form-input" placeholder="12–20 jours" />
+        <label class="form-label">Delai estime</label>
+        <input type="text" id="f-delay" class="form-input" placeholder="12-20 jours" />
       </div>
 
       <label style="display:flex;align-items:center;gap:10px;margin-bottom:var(--space-5);font-size:0.9rem">
@@ -194,20 +199,28 @@
     const listEl = document.getElementById("list");
     const emptyEl = document.getElementById("empty");
     const modal = document.getElementById("modal");
+    const previewGrid = document.getElementById("preview-grid");
+
     let products = [];
     let editingId = null;
-    let existingImageUrl = "";
+    let existingUrls = [];
+    let newFiles = [];
 
     await loadProducts();
+
+    function coverOf(p) {
+      if (p.imageUrls && p.imageUrls.length) return p.imageUrls[0];
+      return p.imageUrl || "";
+    }
 
     async function loadProducts() {
       listEl.innerHTML = "";
       try {
         const snap = await getDocs(collection(db, "products"));
-        products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        products.sort((a, b) => {
-          const ta = a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
-          const tb = b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+        products = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        products.sort(function (a, b) {
+          var ta = (a.updatedAt && a.updatedAt.toMillis) ? a.updatedAt.toMillis() : 0;
+          var tb = (b.updatedAt && b.updatedAt.toMillis) ? b.updatedAt.toMillis() : 0;
           return tb - ta;
         });
       } catch (e) {
@@ -216,7 +229,8 @@
       }
 
       document.getElementById("count-label").textContent =
-        `${products.length} produit${products.length !== 1 ? "s" : ""} · ${products.filter(p => p.published).length} publié(s)`;
+        products.length + " produit(s) · " +
+        products.filter(function (p) { return p.published; }).length + " publie(s)";
 
       if (!products.length) {
         emptyEl.style.display = "block";
@@ -224,48 +238,129 @@
       }
       emptyEl.style.display = "none";
 
-      products.forEach(p => {
-        const row = document.createElement("div");
+      products.forEach(function (p) {
+        var row = document.createElement("div");
         row.className = "product-row";
-        const img = p.imageUrl
-          ? `<img class="thumb" src="${p.imageUrl}" alt="" />`
-          : `<div class="thumb-placeholder">—</div>`;
-        row.innerHTML = `
-          ${img}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.name || "Sans nom")}</div>
-            <div style="font-size:0.8rem;color:var(--abit-gray-400);margin-top:2px">
-              ${p.priceXof != null ? Number(p.priceXof).toLocaleString("fr-FR") + " XOF" : "—"}
-              ${p.category ? " · " + escapeHtml(p.category) : ""}
-            </div>
-            <div class="row-actions">
-              <span class="badge ${p.published ? "badge-success" : "badge-pending"}">${p.published ? "Publié" : "Brouillon"}</span>
-              <button type="button" class="btn-sm outline" data-edit="${p.id}">Modifier</button>
-              <button type="button" class="btn-sm ${p.published ? "warn" : "success"}" data-toggle="${p.id}">${p.published ? "Dépublier" : "Publier"}</button>
-              <button type="button" class="btn-sm danger" data-del="${p.id}">Supprimer</button>
-            </div>
-          </div>`;
+
+        var url = coverOf(p);
+        if (url) {
+          var img = document.createElement("img");
+          img.className = "thumb";
+          img.src = url;
+          img.alt = "";
+          row.appendChild(img);
+        } else {
+          var ph = document.createElement("div");
+          ph.className = "thumb-placeholder";
+          ph.textContent = "-";
+          row.appendChild(ph);
+        }
+
+        var info = document.createElement("div");
+        info.style.flex = "1";
+        info.style.minWidth = "0";
+
+        var title = document.createElement("div");
+        title.style.fontWeight = "600";
+        title.style.fontSize = "0.95rem";
+        title.style.whiteSpace = "nowrap";
+        title.style.overflow = "hidden";
+        title.style.textOverflow = "ellipsis";
+        title.textContent = p.name || "Sans nom";
+
+        var sub = document.createElement("div");
+        sub.style.fontSize = "0.8rem";
+        sub.style.color = "var(--abit-gray-400)";
+        sub.style.marginTop = "2px";
+        var priceTxt = p.priceXof != null ? Number(p.priceXof).toLocaleString("fr-FR") + " XOF" : "-";
+        var nImg = (p.imageUrls && p.imageUrls.length) ? p.imageUrls.length : (p.imageUrl ? 1 : 0);
+        sub.textContent = priceTxt + (p.category ? " · " + p.category : "") + (nImg ? " · " + nImg + " photo(s)" : "");
+
+        var actions = document.createElement("div");
+        actions.className = "row-actions";
+
+        var badge = document.createElement("span");
+        badge.className = "badge " + (p.published ? "badge-success" : "badge-pending");
+        badge.textContent = p.published ? "Publie" : "Brouillon";
+
+        var btnEdit = document.createElement("button");
+        btnEdit.type = "button";
+        btnEdit.className = "btn-sm outline";
+        btnEdit.textContent = "Modifier";
+        btnEdit.addEventListener("click", function () { openEdit(p.id); });
+
+        var btnToggle = document.createElement("button");
+        btnToggle.type = "button";
+        btnToggle.className = "btn-sm " + (p.published ? "warn" : "success");
+        btnToggle.textContent = p.published ? "Depublier" : "Publier";
+        btnToggle.addEventListener("click", function () { togglePublish(p.id); });
+
+        var btnDel = document.createElement("button");
+        btnDel.type = "button";
+        btnDel.className = "btn-sm danger";
+        btnDel.textContent = "Supprimer";
+        btnDel.addEventListener("click", function () { removeProduct(p.id); });
+
+        actions.appendChild(badge);
+        actions.appendChild(btnEdit);
+        actions.appendChild(btnToggle);
+        actions.appendChild(btnDel);
+
+        info.appendChild(title);
+        info.appendChild(sub);
+        info.appendChild(actions);
+        row.appendChild(info);
         listEl.appendChild(row);
       });
-
-      listEl.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEdit(btn.dataset.edit)));
-      listEl.querySelectorAll("[data-toggle]").forEach(btn => btn.addEventListener("click", () => togglePublish(btn.dataset.toggle)));
-      listEl.querySelectorAll("[data-del]").forEach(btn => btn.addEventListener("click", () => removeProduct(btn.dataset.del)));
     }
 
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    function renderPreviews() {
+      previewGrid.innerHTML = "";
+      existingUrls.forEach(function (url, i) {
+        var item = document.createElement("div");
+        item.className = "preview-item";
+        var img = document.createElement("img");
+        img.src = url;
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.textContent = "x";
+        rm.addEventListener("click", function () {
+          existingUrls.splice(i, 1);
+          renderPreviews();
+        });
+        item.appendChild(img);
+        item.appendChild(rm);
+        previewGrid.appendChild(item);
+      });
+      newFiles.forEach(function (file, i) {
+        var item = document.createElement("div");
+        item.className = "preview-item";
+        var img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.textContent = "x";
+        rm.addEventListener("click", function () {
+          newFiles.splice(i, 1);
+          renderPreviews();
+        });
+        item.appendChild(img);
+        item.appendChild(rm);
+        previewGrid.appendChild(item);
+      });
     }
 
     function openModal() {
       modal.classList.add("open");
       document.body.style.overflow = "hidden";
     }
+
     function closeModal() {
       modal.classList.remove("open");
       document.body.style.overflow = "";
       editingId = null;
-      existingImageUrl = "";
+      existingUrls = [];
+      newFiles = [];
       document.getElementById("f-name").value = "";
       document.getElementById("f-desc").value = "";
       document.getElementById("f-price-xof").value = "";
@@ -273,47 +368,51 @@
       document.getElementById("f-category").value = "";
       document.getElementById("f-delay").value = "";
       document.getElementById("f-published").checked = true;
-      document.getElementById("f-image").value = "";
-      document.getElementById("f-preview").style.display = "none";
-      document.getElementById("f-preview").src = "";
+      document.getElementById("f-images").value = "";
       document.getElementById("form-error").style.display = "none";
       document.getElementById("modal-title").textContent = "Nouveau produit";
+      previewGrid.innerHTML = "";
     }
 
-    document.getElementById("btn-new").addEventListener("click", () => { closeModal(); openModal(); });
+    document.getElementById("btn-new").addEventListener("click", function () {
+      closeModal();
+      openModal();
+    });
     document.getElementById("modal-close").addEventListener("click", closeModal);
     document.getElementById("btn-cancel").addEventListener("click", closeModal);
 
-    document.getElementById("f-image").addEventListener("change", (e) => {
-      const file = e.target.files?.[0];
-      const preview = document.getElementById("f-preview");
-      if (!file) { preview.style.display = "none"; return; }
-      preview.src = URL.createObjectURL(file);
-      preview.style.display = "block";
+    document.getElementById("f-images").addEventListener("change", function (e) {
+      var files = e.target.files;
+      if (!files || !files.length) return;
+      for (var i = 0; i < files.length; i++) newFiles.push(files[i]);
+      e.target.value = "";
+      renderPreviews();
     });
 
     function openEdit(id) {
-      const p = products.find(x => x.id === id);
+      var p = products.find(function (x) { return x.id === id; });
       if (!p) return;
       editingId = id;
-      existingImageUrl = p.imageUrl || "";
+      if (p.imageUrls && p.imageUrls.length) existingUrls = p.imageUrls.slice();
+      else if (p.imageUrl) existingUrls = [p.imageUrl];
+      else existingUrls = [];
+      newFiles = [];
       document.getElementById("modal-title").textContent = "Modifier le produit";
       document.getElementById("f-name").value = p.name || "";
       document.getElementById("f-desc").value = p.description || "";
-      document.getElementById("f-price-xof").value = p.priceXof ?? "";
-      document.getElementById("f-price-rmb").value = p.priceRmb ?? "";
+      document.getElementById("f-price-xof").value = p.priceXof != null ? p.priceXof : "";
+      document.getElementById("f-price-rmb").value = p.priceRmb != null ? p.priceRmb : "";
       document.getElementById("f-category").value = p.category || "";
       document.getElementById("f-delay").value = p.deliveryDelay || "";
       document.getElementById("f-published").checked = !!p.published;
-      const preview = document.getElementById("f-preview");
-      if (p.imageUrl) { preview.src = p.imageUrl; preview.style.display = "block"; }
+      renderPreviews();
       openModal();
     }
 
-    document.getElementById("btn-save").addEventListener("click", async () => {
-      const name = document.getElementById("f-name").value.trim();
-      const priceXof = Number(document.getElementById("f-price-xof").value);
-      const err = document.getElementById("form-error");
+    document.getElementById("btn-save").addEventListener("click", async function () {
+      var name = document.getElementById("f-name").value.trim();
+      var priceXof = Number(document.getElementById("f-price-xof").value);
+      var err = document.getElementById("form-error");
       err.style.display = "none";
 
       if (!name || !priceXof || priceXof < 0) {
@@ -322,15 +421,15 @@
         return;
       }
 
-      const btn = document.getElementById("btn-save");
+      var btn = document.getElementById("btn-save");
       btn.disabled = true;
       btn.textContent = "Enregistrement…";
 
       try {
-        const payload = {
-          name,
+        var payload = {
+          name: name,
           description: document.getElementById("f-desc").value.trim(),
-          priceXof,
+          priceXof: priceXof,
           priceRmb: document.getElementById("f-price-rmb").value
             ? Number(document.getElementById("f-price-rmb").value) : null,
           category: document.getElementById("f-category").value.trim() || null,
@@ -339,28 +438,40 @@
           updatedAt: serverTimestamp()
         };
 
-        const file = document.getElementById("f-image").files?.[0];
-        let imageUrl = existingImageUrl;
-
-        if (editingId) {
-          if (file) imageUrl = await uploadProductImage(file, editingId);
-          payload.imageUrl = imageUrl || null;
-          await updateDoc(doc(db, "products", editingId), payload);
-        } else {
+        var productId = editingId;
+        if (!productId) {
           payload.createdAt = serverTimestamp();
           payload.imageUrl = null;
-          const refDoc = await addDoc(collection(db, "products"), payload);
-          if (file) {
-            imageUrl = await uploadProductImage(file, refDoc.id);
-            await updateDoc(doc(db, "products", refDoc.id), { imageUrl });
-          }
+          payload.imageUrls = [];
+          var refDoc = await addDoc(collection(db, "products"), payload);
+          productId = refDoc.id;
         }
+
+        var uploaded = [];
+        for (var i = 0; i < newFiles.length; i++) {
+          var url = await uploadProductImage(newFiles[i], productId);
+          uploaded.push(url);
+        }
+
+        var allUrls = existingUrls.concat(uploaded);
+        await updateDoc(doc(db, "products", productId), {
+          name: payload.name,
+          description: payload.description,
+          priceXof: payload.priceXof,
+          priceRmb: payload.priceRmb,
+          category: payload.category,
+          deliveryDelay: payload.deliveryDelay,
+          published: payload.published,
+          imageUrls: allUrls,
+          imageUrl: allUrls[0] || null,
+          updatedAt: serverTimestamp()
+        });
 
         closeModal();
         await loadProducts();
       } catch (e) {
         console.error(e);
-        err.textContent = "Erreur : " + (e.message || "vérifie les règles Firebase.");
+        err.textContent = "Erreur : " + (e.message || "Firebase");
         err.style.display = "block";
       } finally {
         btn.disabled = false;
@@ -369,7 +480,7 @@
     });
 
     async function togglePublish(id) {
-      const p = products.find(x => x.id === id);
+      var p = products.find(function (x) { return x.id === id; });
       if (!p) return;
       await updateDoc(doc(db, "products", id), {
         published: !p.published,
@@ -379,7 +490,7 @@
     }
 
     async function removeProduct(id) {
-      if (!confirm("Supprimer ce produit définitivement ?")) return;
+      if (!confirm("Supprimer ce produit definitivement ?")) return;
       await deleteDoc(doc(db, "products", id));
       await loadProducts();
     }
