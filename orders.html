@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B3D2E" />
+  <title>ABIT Admin — Commandes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <style>
+    .admin-layout { display: flex; min-height: 100dvh; }
+    .sidebar {
+      width: 240px; background: var(--abit-green-dark); color: white;
+      padding: var(--space-6) var(--space-4); flex-shrink: 0; display: none;
+    }
+    @media (min-width: 900px) {
+      .sidebar { display: block; }
+      .mobile-nav { display: none !important; }
+    }
+    .sidebar .logo { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-8); }
+    .sidebar a {
+      display: block; padding: var(--space-3); border-radius: var(--radius-sm);
+      margin-bottom: 2px; font-size: 0.9rem; color: rgba(255,255,255,0.75);
+    }
+    .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); color: white; }
+    .main-admin { flex: 1; padding: var(--space-4); padding-bottom: 80px; max-width: 100%; }
+    .mobile-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-top: 1px solid var(--abit-gray-100); display: flex; z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mobile-nav a {
+      flex: 1; min-width: 70px; text-align: center; padding: 10px 4px;
+      font-size: 0.65rem; color: var(--abit-gray-400);
+    }
+    .mobile-nav a.active { color: var(--abit-green); }
+    .order-card { margin-bottom: var(--space-3); }
+    .items { font-size: 0.85rem; color: var(--abit-gray-600); margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar">
+      <div class="logo">ABIT <span style="color:var(--abit-gold)">Admin</span></div>
+      <nav>
+        <a href="index.html">Tableau de bord</a>
+        <a href="exchanges.html">Echanges</a>
+        <a href="orders.html" class="active">Commandes</a>
+        <a href="products.html">Produits</a>
+        <a href="settings.html">Parametres</a>
+      </nav>
+    </aside>
+    <main class="main-admin">
+      <h1 style="font-size:1.35rem;font-weight:700;margin-bottom:4px">Commandes</h1>
+      <p style="font-size:0.8rem;color:var(--abit-gray-400);margin-bottom:var(--space-4)" id="count">Chargement...</p>
+      <div id="list"></div>
+      <div id="empty" class="empty-state" style="display:none"><p>Aucune commande.</p></div>
+    </main>
+    <nav class="mobile-nav">
+      <a href="index.html">Dashboard</a>
+      <a href="exchanges.html">Echanges</a>
+      <a href="orders.html" class="active">Commandes</a>
+      <a href="products.html">Produits</a>
+      <a href="settings.html">Reglages</a>
+    </nav>
+  </div>
+  <script type="module">
+    import { db, collection, getDocs, doc, updateDoc, serverTimestamp } from "./js/firebase-init.js";
+
+    var STATUSES = [
+      "received","pending_payment","confirmed","sourcing","shipped",
+      "in_transit","arrived_sn","delivering","delivered","cancelled"
+    ];
+    var LABELS = {
+      received: "Recue", pending_payment: "Paiement", confirmed: "Confirmee",
+      sourcing: "Appro", shipped: "Expediee", in_transit: "Transit",
+      arrived_sn: "Senegal", delivering: "Livraison", delivered: "Livree", cancelled: "Annulee"
+    };
+    var orders = [];
+
+    function render() {
+      var list = document.getElementById("list");
+      list.innerHTML = "";
+      document.getElementById("count").textContent = orders.length + " commande(s)";
+      if (!orders.length) { document.getElementById("empty").style.display = "block"; return; }
+      document.getElementById("empty").style.display = "none";
+
+      orders.forEach(function (o) {
+        var card = document.createElement("div");
+        card.className = "card order-card";
+
+        var top = document.createElement("div");
+        top.style.display = "flex";
+        top.style.justifyContent = "space-between";
+        top.style.alignItems = "flex-start";
+        var title = document.createElement("div");
+        title.style.fontWeight = "700";
+        title.textContent = o.orderNumber || o.id.slice(0, 10).toUpperCase();
+        var total = document.createElement("div");
+        total.style.fontWeight = "700";
+        total.style.color = "var(--abit-green)";
+        total.textContent = o.totalXof != null ? Number(o.totalXof).toLocaleString("fr-FR") + " XOF" : "";
+        top.appendChild(title);
+        top.appendChild(total);
+
+        var meta = document.createElement("div");
+        meta.style.fontSize = "0.8rem";
+        meta.style.color = "var(--abit-gray-600)";
+        meta.style.marginTop = "4px";
+        meta.textContent = (o.userEmail || "") + (o.phone ? " · " + o.phone : "");
+
+        var addr = document.createElement("div");
+        addr.style.fontSize = "0.8rem";
+        addr.style.marginTop = "2px";
+        addr.textContent = o.address || "";
+
+        var items = document.createElement("div");
+        items.className = "items";
+        if (Array.isArray(o.items)) {
+          items.textContent = o.items.map(function (it) {
+            return (it.qty || 1) + " x " + (it.name || "Article");
+          }).join(", ");
+        }
+
+        var row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.flexWrap = "wrap";
+        row.style.gap = "8px";
+        row.style.marginTop = "10px";
+
+        var sel = document.createElement("select");
+        sel.className = "form-select";
+        sel.style.minHeight = "40px";
+        sel.style.flex = "1";
+        sel.style.minWidth = "140px";
+        STATUSES.forEach(function (s) {
+          var opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = LABELS[s] || s;
+          if (s === (o.status || "received")) opt.selected = true;
+          sel.appendChild(opt);
+        });
+
+        var track = document.createElement("input");
+        track.className = "form-input";
+        track.placeholder = "N° suivi";
+        track.value = o.trackingCode || "";
+        track.style.minHeight = "40px";
+        track.style.flex = "1";
+        track.style.minWidth = "120px";
+
+        var btn = document.createElement("button");
+        btn.className = "btn btn-primary";
+        btn.style.minHeight = "40px";
+        btn.textContent = "Enregistrer";
+        btn.addEventListener("click", async function () {
+          btn.disabled = true;
+          btn.textContent = "...";
+          try {
+            await updateDoc(doc(db, "orders", o.id), {
+              status: sel.value,
+              trackingCode: track.value.trim(),
+              updatedAt: serverTimestamp()
+            });
+            btn.textContent = "OK";
+            setTimeout(function () { btn.textContent = "Enregistrer"; btn.disabled = false; }, 800);
+          } catch (e) {
+            btn.textContent = "Erreur";
+            btn.disabled = false;
+          }
+        });
+
+        row.appendChild(sel);
+        row.appendChild(track);
+        row.appendChild(btn);
+
+        card.appendChild(top);
+        card.appendChild(meta);
+        card.appendChild(addr);
+        card.appendChild(items);
+        card.appendChild(row);
+        list.appendChild(card);
+      });
+    }
+
+    async function load() {
+      try {
+        var snap = await getDocs(collection(db, "orders"));
+        orders = [];
+        snap.forEach(function (d) { orders.push(Object.assign({ id: d.id }, d.data())); });
+        orders.sort(function (a, b) {
+          var ta = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
+          var tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
+          return tb - ta;
+        });
+      } catch (e) { orders = []; }
+      render();
+    }
+    load();
+  </script>
+</body>
+</html>

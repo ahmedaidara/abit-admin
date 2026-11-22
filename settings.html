@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B3D2E" />
+  <title>ABIT Admin — Parametres</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <style>
+    .admin-layout { display: flex; min-height: 100dvh; }
+    .sidebar {
+      width: 240px; background: var(--abit-green-dark); color: white;
+      padding: var(--space-6) var(--space-4); flex-shrink: 0; display: none;
+    }
+    @media (min-width: 900px) {
+      .sidebar { display: block; }
+      .mobile-nav { display: none !important; }
+    }
+    .sidebar .logo { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-8); }
+    .sidebar a {
+      display: block; padding: var(--space-3); border-radius: var(--radius-sm);
+      margin-bottom: 2px; font-size: 0.9rem; color: rgba(255,255,255,0.75);
+    }
+    .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); color: white; }
+    .main-admin { flex: 1; padding: var(--space-4); padding-bottom: 80px; max-width: 640px; }
+    .mobile-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-top: 1px solid var(--abit-gray-100); display: flex; z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mobile-nav a {
+      flex: 1; min-width: 70px; text-align: center; padding: 10px 4px;
+      font-size: 0.65rem; color: var(--abit-gray-400);
+    }
+    .mobile-nav a.active { color: var(--abit-green); }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar">
+      <div class="logo">ABIT <span style="color:var(--abit-gold)">Admin</span></div>
+      <nav>
+        <a href="index.html">Tableau de bord</a>
+        <a href="exchanges.html">Echanges</a>
+        <a href="orders.html">Commandes</a>
+        <a href="products.html">Produits</a>
+        <a href="settings.html" class="active">Parametres</a>
+      </nav>
+    </aside>
+    <main class="main-admin">
+      <h1 style="font-size:1.35rem;font-weight:700;margin-bottom:var(--space-4)">Parametres</h1>
+
+      <div class="card">
+        <h2 style="font-size:1rem;font-weight:600;margin-bottom:var(--space-3)">Taux de change</h2>
+        <p style="font-size:0.85rem;color:var(--abit-gray-600);margin-bottom:var(--space-4)">
+          Utilise par le calculateur client (RMB vers XOF).
+        </p>
+        <div class="form-group">
+          <label class="form-label">1 RMB = combien de XOF</label>
+          <input type="number" id="rate" class="form-input" min="1" step="0.01" placeholder="95" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message client (optionnel)</label>
+          <input type="text" id="note" class="form-input" placeholder="Taux indicatif, confirmation manuelle" />
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-save">Enregistrer le taux</button>
+        <p id="msg" style="font-size:0.85rem;margin-top:10px;display:none"></p>
+      </div>
+
+      <div class="card" style="margin-top:var(--space-4)">
+        <h2 style="font-size:1rem;font-weight:600;margin-bottom:var(--space-2)">Infos</h2>
+        <p style="font-size:0.85rem;color:var(--abit-gray-600)">
+          Les regles Firebase sont actuellement ouvertes pour le developpement.
+          A restreindre avant une vraie mise en production.
+        </p>
+      </div>
+    </main>
+    <nav class="mobile-nav">
+      <a href="index.html">Dashboard</a>
+      <a href="exchanges.html">Echanges</a>
+      <a href="orders.html">Commandes</a>
+      <a href="products.html">Produits</a>
+      <a href="settings.html" class="active">Reglages</a>
+    </nav>
+  </div>
+  <script type="module">
+    import { db, doc, getDoc, setDoc, serverTimestamp } from "./js/firebase-init.js";
+
+    async function load() {
+      try {
+        var snap = await getDoc(doc(db, "appSettings", "exchange"));
+        if (snap.exists()) {
+          var d = snap.data();
+          if (d.rmbToXof) document.getElementById("rate").value = d.rmbToXof;
+          if (d.note) document.getElementById("note").value = d.note;
+        }
+      } catch (e) {}
+    }
+
+    document.getElementById("btn-save").addEventListener("click", async function () {
+      var rate = Number(document.getElementById("rate").value);
+      var msg = document.getElementById("msg");
+      if (!rate || rate <= 0) {
+        msg.style.color = "var(--status-error)";
+        msg.textContent = "Taux invalide.";
+        msg.style.display = "block";
+        return;
+      }
+      try {
+        await setDoc(doc(db, "appSettings", "exchange"), {
+          rmbToXof: rate,
+          note: document.getElementById("note").value.trim(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        msg.style.color = "var(--status-success)";
+        msg.textContent = "Taux enregistre.";
+        msg.style.display = "block";
+      } catch (e) {
+        msg.style.color = "var(--status-error)";
+        msg.textContent = "Erreur : " + (e.message || "");
+        msg.style.display = "block";
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

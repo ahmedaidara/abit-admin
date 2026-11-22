@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B3D2E" />
+  <title>ABIT Admin — Echanges</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <style>
+    .admin-layout { display: flex; min-height: 100dvh; }
+    .sidebar {
+      width: 240px; background: var(--abit-green-dark); color: white;
+      padding: var(--space-6) var(--space-4); flex-shrink: 0; display: none;
+    }
+    @media (min-width: 900px) {
+      .sidebar { display: block; }
+      .mobile-nav { display: none !important; }
+    }
+    .sidebar .logo { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-8); }
+    .sidebar a {
+      display: block; padding: var(--space-3); border-radius: var(--radius-sm);
+      margin-bottom: 2px; font-size: 0.9rem; color: rgba(255,255,255,0.75);
+    }
+    .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); color: white; }
+    .main-admin { flex: 1; padding: var(--space-4); padding-bottom: 80px; max-width: 100%; }
+    .mobile-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-top: 1px solid var(--abit-gray-100); display: flex; z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mobile-nav a {
+      flex: 1; min-width: 70px; text-align: center; padding: 10px 4px;
+      font-size: 0.65rem; color: var(--abit-gray-400);
+    }
+    .mobile-nav a.active { color: var(--abit-green); }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar">
+      <div class="logo">ABIT <span style="color:var(--abit-gold)">Admin</span></div>
+      <nav>
+        <a href="index.html">Tableau de bord</a>
+        <a href="exchanges.html" class="active">Echanges</a>
+        <a href="orders.html">Commandes</a>
+        <a href="products.html">Produits</a>
+        <a href="settings.html">Parametres</a>
+      </nav>
+    </aside>
+    <main class="main-admin">
+      <h1 style="font-size:1.35rem;font-weight:700;margin-bottom:4px">Echanges</h1>
+      <p style="font-size:0.8rem;color:var(--abit-gray-400);margin-bottom:var(--space-4)" id="count">Chargement...</p>
+      <div id="list"></div>
+      <div id="empty" class="empty-state" style="display:none"><p>Aucune demande.</p></div>
+    </main>
+    <nav class="mobile-nav">
+      <a href="index.html">Dashboard</a>
+      <a href="exchanges.html" class="active">Echanges</a>
+      <a href="orders.html">Commandes</a>
+      <a href="products.html">Produits</a>
+      <a href="settings.html">Reglages</a>
+    </nav>
+  </div>
+  <script type="module">
+    import { db, collection, getDocs, doc, updateDoc, serverTimestamp } from "./js/firebase-init.js";
+
+    var STATUSES = ["pending", "confirmed", "done", "refused"];
+    var LABELS = { pending: "En attente", confirmed: "Confirmee", done: "Terminee", refused: "Refusee" };
+    var items = [];
+
+    function fmt(n) { return Number(n || 0).toLocaleString("fr-FR"); }
+
+    function render() {
+      var list = document.getElementById("list");
+      list.innerHTML = "";
+      document.getElementById("count").textContent = items.length + " demande(s)";
+      if (!items.length) { document.getElementById("empty").style.display = "block"; return; }
+      document.getElementById("empty").style.display = "none";
+
+      items.forEach(function (r) {
+        var card = document.createElement("div");
+        card.className = "card";
+        card.style.marginBottom = "12px";
+
+        var title = document.createElement("div");
+        title.style.fontWeight = "700";
+        title.textContent = (r.direction === "xof_to_rmb" ? "XOF → RMB" : "RMB → XOF") + " · " + fmt(r.amount) + " → ~ " + fmt(r.estimatedReceive);
+
+        var meta = document.createElement("div");
+        meta.style.fontSize = "0.85rem";
+        meta.style.color = "var(--abit-gray-600)";
+        meta.style.marginTop = "6px";
+        meta.textContent = (r.userEmail || "") + " · " + (r.paySn || "") + " / " + (r.payCn || "") + (r.contact ? " · " + r.contact : "");
+
+        if (r.note) {
+          var note = document.createElement("div");
+          note.style.fontSize = "0.8rem";
+          note.style.marginTop = "4px";
+          note.textContent = "Note : " + r.note;
+          card.appendChild(title);
+          card.appendChild(meta);
+          card.appendChild(note);
+        } else {
+          card.appendChild(title);
+          card.appendChild(meta);
+        }
+
+        var row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.gap = "8px";
+        row.style.marginTop = "10px";
+
+        var sel = document.createElement("select");
+        sel.className = "form-select";
+        sel.style.minHeight = "40px";
+        sel.style.flex = "1";
+        STATUSES.forEach(function (s) {
+          var opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = LABELS[s];
+          if (s === (r.status || "pending")) opt.selected = true;
+          sel.appendChild(opt);
+        });
+
+        var btn = document.createElement("button");
+        btn.className = "btn btn-primary";
+        btn.style.minHeight = "40px";
+        btn.textContent = "Mettre a jour";
+        btn.addEventListener("click", async function () {
+          btn.disabled = true;
+          try {
+            await updateDoc(doc(db, "exchangeRequests", r.id), {
+              status: sel.value,
+              updatedAt: serverTimestamp()
+            });
+            btn.textContent = "OK";
+            setTimeout(function () { btn.textContent = "Mettre a jour"; btn.disabled = false; }, 800);
+          } catch (e) {
+            btn.textContent = "Erreur";
+            btn.disabled = false;
+          }
+        });
+
+        row.appendChild(sel);
+        row.appendChild(btn);
+        card.appendChild(row);
+        list.appendChild(card);
+      });
+    }
+
+    async function load() {
+      try {
+        var snap = await getDocs(collection(db, "exchangeRequests"));
+        items = [];
+        snap.forEach(function (d) { items.push(Object.assign({ id: d.id }, d.data())); });
+        items.sort(function (a, b) {
+          var ta = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
+          var tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
+          return tb - ta;
+        });
+      } catch (e) { items = []; }
+      render();
+    }
+    load();
+  </script>
+</body>
+</html>
