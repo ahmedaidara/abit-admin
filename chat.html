@@ -51,10 +51,11 @@
     .composer textarea:focus { border-color: var(--abit-green); }
     .composer button {
       width: 44px; height: 44px; border-radius: 50%; background: var(--abit-green);
-      color: #fff; border: none; font-size: 1.15rem; flex-shrink: 0;
+      color: #fff; border: none; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
     .composer button:disabled { opacity: 0.5; }
+    #err { color: #B91C1C; font-size: 0.8rem; text-align: center; padding: 6px; display: none; }
   </style>
 </head>
 <body>
@@ -68,6 +69,7 @@
     </header>
 
     <div class="messages" id="messages"></div>
+    <div id="err"></div>
 
     <form class="composer" id="form">
       <textarea id="input" rows="1" placeholder="Repondre au client..."></textarea>
@@ -82,22 +84,31 @@
   <script type="module">
     import {
       db, doc, getDoc, setDoc, updateDoc, collection, addDoc,
-      onSnapshot, serverTimestamp, query, orderBy
+      onSnapshot, serverTimestamp
     } from "./js/firebase-init.js";
 
     var params = new URLSearchParams(location.search);
     var uid = params.get("uid");
     if (!uid) { location.href = "messages.html"; }
 
-    function formatTime(ts) {
-      if (!ts) return "";
-      var d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    var localMsgs = [];
+
+    function tsValue(m) {
+      if (m.createdAt && m.createdAt.toMillis) return m.createdAt.toMillis();
+      if (m.clientTs) return m.clientTs;
+      return 0;
     }
 
-    function render(msgs) {
+    function formatTime(m) {
+      var t = tsValue(m);
+      if (!t) return "";
+      return new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function render() {
       var box = document.getElementById("messages");
       box.innerHTML = "";
+      var msgs = localMsgs.slice().sort(function (a, b) { return tsValue(a) - tsValue(b); });
       msgs.forEach(function (m) {
         var b = document.createElement("div");
         b.className = "bubble " + (m.sender === "admin" ? "admin" : "client");
@@ -105,7 +116,7 @@
         txt.textContent = m.text || "";
         var time = document.createElement("span");
         time.className = "time";
-        time.textContent = formatTime(m.createdAt);
+        time.textContent = formatTime(m);
         b.appendChild(txt);
         b.appendChild(time);
         box.appendChild(b);
@@ -125,15 +136,19 @@
       } catch (e) {}
     }
 
-    var q = query(
+    onSnapshot(
       collection(db, "chats", uid, "messages"),
-      orderBy("createdAt", "asc")
+      function (snap) {
+        localMsgs = [];
+        snap.forEach(function (d) { localMsgs.push(Object.assign({ id: d.id }, d.data())); });
+        render();
+      },
+      function (err) {
+        var e = document.getElementById("err");
+        e.textContent = "Erreur : " + (err.message || err.code || "");
+        e.style.display = "block";
+      }
     );
-    onSnapshot(q, function (snap) {
-      var msgs = [];
-      snap.forEach(function (d) { msgs.push(d.data()); });
-      render(msgs);
-    });
 
     document.getElementById("form").addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -143,10 +158,16 @@
       var btn = document.getElementById("btn-send");
       btn.disabled = true;
       input.value = "";
+
+      var optimistic = { text: text, sender: "admin", clientTs: Date.now() };
+      localMsgs.push(optimistic);
+      render();
+
       try {
         await addDoc(collection(db, "chats", uid, "messages"), {
           text: text,
           sender: "admin",
+          clientTs: Date.now(),
           createdAt: serverTimestamp()
         });
         await setDoc(doc(db, "chats", uid), {
@@ -154,9 +175,14 @@
           lastMessageAt: serverTimestamp(),
           unreadAdmin: false
         }, { merge: true });
+        document.getElementById("err").style.display = "none";
       } catch (err) {
+        localMsgs = localMsgs.filter(function (m) { return m !== optimistic; });
+        render();
         input.value = text;
-        alert("Erreur d'envoi");
+        var e = document.getElementById("err");
+        e.textContent = "Envoi impossible : " + (err.message || err.code || "");
+        e.style.display = "block";
       } finally {
         btn.disabled = false;
         input.focus();
