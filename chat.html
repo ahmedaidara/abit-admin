@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B3D2E" />
+  <title>ABIT Admin — Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <style>
+    body { background: #F4F6F5; }
+    .chat-wrap { display: flex; flex-direction: column; height: 100dvh; }
+    .chat-header {
+      background: var(--abit-green); color: #fff;
+      padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    }
+    .chat-header a { color: #fff; font-size: 1.4rem; }
+    .chat-header .title { font-weight: 700; font-size: 1.05rem; }
+    .chat-header .sub { font-size: 0.75rem; opacity: 0.85; }
+    .messages {
+      flex: 1; overflow-y: auto; padding: 16px 14px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .bubble {
+      max-width: 78%; padding: 10px 14px; border-radius: 16px;
+      font-size: 0.92rem; line-height: 1.45; word-break: break-word;
+    }
+    .bubble.admin {
+      align-self: flex-end; background: var(--abit-green); color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .bubble.client {
+      align-self: flex-start; background: #fff; color: var(--abit-gray-800);
+      border: 1px solid var(--abit-gray-100);
+      border-bottom-left-radius: 4px;
+    }
+    .bubble .time {
+      display: block; font-size: 0.68rem; opacity: 0.7; margin-top: 4px; text-align: right;
+    }
+    .bubble.client .time { text-align: left; }
+    .composer {
+      background: #fff; border-top: 1px solid var(--abit-gray-100);
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      display: flex; gap: 8px; align-items: flex-end;
+    }
+    .composer textarea {
+      flex: 1; border: 1.5px solid var(--abit-gray-200); border-radius: 20px;
+      padding: 10px 14px; font-size: 0.95rem; resize: none; max-height: 100px;
+      min-height: 42px; font-family: inherit; outline: none;
+    }
+    .composer textarea:focus { border-color: var(--abit-green); }
+    .composer button {
+      width: 44px; height: 44px; border-radius: 50%; background: var(--abit-green);
+      color: #fff; border: none; font-size: 1.15rem; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .composer button:disabled { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <div class="chat-wrap">
+    <header class="chat-header">
+      <a href="messages.html" aria-label="Retour">&lsaquo;</a>
+      <div>
+        <div class="title" id="client-name">Client</div>
+        <div class="sub" id="client-email"></div>
+      </div>
+    </header>
+
+    <div class="messages" id="messages"></div>
+
+    <form class="composer" id="form">
+      <textarea id="input" rows="1" placeholder="Repondre au client..."></textarea>
+      <button type="submit" id="btn-send" aria-label="Envoyer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+        </svg>
+      </button>
+    </form>
+  </div>
+
+  <script type="module">
+    import {
+      db, doc, getDoc, setDoc, updateDoc, collection, addDoc,
+      onSnapshot, serverTimestamp, query, orderBy
+    } from "./js/firebase-init.js";
+
+    var params = new URLSearchParams(location.search);
+    var uid = params.get("uid");
+    if (!uid) { location.href = "messages.html"; }
+
+    function formatTime(ts) {
+      if (!ts) return "";
+      var d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function render(msgs) {
+      var box = document.getElementById("messages");
+      box.innerHTML = "";
+      msgs.forEach(function (m) {
+        var b = document.createElement("div");
+        b.className = "bubble " + (m.sender === "admin" ? "admin" : "client");
+        var txt = document.createElement("div");
+        txt.textContent = m.text || "";
+        var time = document.createElement("span");
+        time.className = "time";
+        time.textContent = formatTime(m.createdAt);
+        b.appendChild(txt);
+        b.appendChild(time);
+        box.appendChild(b);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function loadMeta() {
+      try {
+        var snap = await getDoc(doc(db, "chats", uid));
+        if (snap.exists()) {
+          var d = snap.data();
+          document.getElementById("client-name").textContent = d.userEmail || "Client";
+          document.getElementById("client-email").textContent = uid.slice(0, 12) + "...";
+        }
+        await updateDoc(doc(db, "chats", uid), { unreadAdmin: false });
+      } catch (e) {}
+    }
+
+    var q = query(
+      collection(db, "chats", uid, "messages"),
+      orderBy("createdAt", "asc")
+    );
+    onSnapshot(q, function (snap) {
+      var msgs = [];
+      snap.forEach(function (d) { msgs.push(d.data()); });
+      render(msgs);
+    });
+
+    document.getElementById("form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var input = document.getElementById("input");
+      var text = input.value.trim();
+      if (!text) return;
+      var btn = document.getElementById("btn-send");
+      btn.disabled = true;
+      input.value = "";
+      try {
+        await addDoc(collection(db, "chats", uid, "messages"), {
+          text: text,
+          sender: "admin",
+          createdAt: serverTimestamp()
+        });
+        await setDoc(doc(db, "chats", uid), {
+          lastMessage: text,
+          lastMessageAt: serverTimestamp(),
+          unreadAdmin: false
+        }, { merge: true });
+      } catch (err) {
+        input.value = text;
+        alert("Erreur d'envoi");
+      } finally {
+        btn.disabled = false;
+        input.focus();
+      }
+    });
+
+    var ta = document.getElementById("input");
+    ta.addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 100) + "px";
+    });
+
+    loadMeta();
+  </script>
+</body>
+</html>

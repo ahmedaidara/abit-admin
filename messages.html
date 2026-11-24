@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B3D2E" />
+  <title>ABIT Admin — Messages</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <style>
+    .admin-layout { display: flex; min-height: 100dvh; }
+    .sidebar {
+      width: 240px; background: var(--abit-green-dark); color: white;
+      padding: var(--space-6) var(--space-4); flex-shrink: 0; display: none;
+    }
+    @media (min-width: 900px) {
+      .sidebar { display: block; }
+      .mobile-nav { display: none !important; }
+    }
+    .sidebar .logo { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-8); }
+    .sidebar a {
+      display: block; padding: var(--space-3); border-radius: var(--radius-sm);
+      margin-bottom: 2px; font-size: 0.9rem; color: rgba(255,255,255,0.75);
+    }
+    .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); color: white; }
+    .main-admin { flex: 1; padding: var(--space-4); padding-bottom: 80px; max-width: 100%; }
+    .mobile-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-top: 1px solid var(--abit-gray-100); display: flex; z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mobile-nav a {
+      flex: 1; min-width: 70px; text-align: center; padding: 10px 4px;
+      font-size: 0.65rem; color: var(--abit-gray-400);
+    }
+    .mobile-nav a.active { color: var(--abit-green); }
+    .conv {
+      display: block; background: #fff; border-radius: var(--radius-md);
+      border: 1px solid var(--abit-gray-100); padding: 14px 16px;
+      margin-bottom: 8px; text-decoration: none; color: inherit;
+    }
+    .conv:hover { border-color: var(--abit-green); }
+    .conv.unread { border-left: 3px solid var(--abit-gold); }
+    .conv-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .conv-email { font-weight: 700; font-size: 0.95rem; }
+    .conv-preview { font-size: 0.85rem; color: var(--abit-gray-600); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-time { font-size: 0.7rem; color: var(--abit-gray-400); flex-shrink: 0; }
+    .badge-new {
+      background: var(--abit-gold); color: #0B3D2E; font-size: 0.65rem;
+      font-weight: 700; padding: 2px 6px; border-radius: 99px; margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar">
+      <div class="logo">ABIT <span style="color:var(--abit-gold)">Admin</span></div>
+      <nav>
+        <a href="index.html">Tableau de bord</a>
+        <a href="messages.html" class="active">Messages</a>
+        <a href="exchanges.html">Echanges</a>
+        <a href="orders.html">Commandes</a>
+        <a href="products.html">Produits</a>
+        <a href="settings.html">Parametres</a>
+      </nav>
+    </aside>
+    <main class="main-admin">
+      <h1 style="font-size:1.35rem;font-weight:700;margin-bottom:4px">Messages</h1>
+      <p style="font-size:0.8rem;color:var(--abit-gray-400);margin-bottom:var(--space-4)" id="count">Chargement...</p>
+      <div id="list"></div>
+      <div id="empty" class="empty-state" style="display:none"><p>Aucun message pour le moment.</p></div>
+    </main>
+    <nav class="mobile-nav">
+      <a href="index.html">Dashboard</a>
+      <a href="messages.html" class="active">Messages</a>
+      <a href="orders.html">Commandes</a>
+      <a href="products.html">Produits</a>
+      <a href="settings.html">Reglages</a>
+    </nav>
+  </div>
+  <script type="module">
+    import { db, collection, onSnapshot, query, orderBy } from "./js/firebase-init.js";
+
+    function formatTime(ts) {
+      if (!ts) return "";
+      var d = ts.toDate ? ts.toDate() : new Date(ts);
+      var now = new Date();
+      if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      }
+      return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    }
+
+    function render(convs) {
+      var list = document.getElementById("list");
+      list.innerHTML = "";
+      document.getElementById("count").textContent = convs.length + " conversation(s)";
+      if (!convs.length) {
+        document.getElementById("empty").style.display = "block";
+        return;
+      }
+      document.getElementById("empty").style.display = "none";
+      convs.forEach(function (c) {
+        var a = document.createElement("a");
+        a.className = "conv" + (c.unreadAdmin ? " unread" : "");
+        a.href = "chat.html?uid=" + encodeURIComponent(c.id);
+
+        var top = document.createElement("div");
+        top.className = "conv-top";
+
+        var left = document.createElement("div");
+        left.style.minWidth = "0";
+        left.style.flex = "1";
+
+        var email = document.createElement("div");
+        email.className = "conv-email";
+        email.textContent = c.userEmail || c.id.slice(0, 10);
+        if (c.unreadAdmin) {
+          var badge = document.createElement("span");
+          badge.className = "badge-new";
+          badge.textContent = "Nouveau";
+          email.appendChild(badge);
+        }
+
+        var preview = document.createElement("div");
+        preview.className = "conv-preview";
+        preview.textContent = c.lastMessage || "Message";
+
+        left.appendChild(email);
+        left.appendChild(preview);
+
+        var time = document.createElement("div");
+        time.className = "conv-time";
+        time.textContent = formatTime(c.lastMessageAt);
+
+        top.appendChild(left);
+        top.appendChild(time);
+        a.appendChild(top);
+        list.appendChild(a);
+      });
+    }
+
+    var q = query(collection(db, "chats"), orderBy("lastMessageAt", "desc"));
+    onSnapshot(q, function (snap) {
+      var convs = [];
+      snap.forEach(function (d) { convs.push(Object.assign({ id: d.id }, d.data())); });
+      render(convs);
+    }, function () {
+      document.getElementById("count").textContent = "Erreur de chargement";
+      document.getElementById("empty").style.display = "block";
+    });
+  </script>
+</body>
+</html>
